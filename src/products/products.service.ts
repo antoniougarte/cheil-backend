@@ -1,7 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { PrismaClientKnownRequestError } from 'generated/prisma/runtime/library';
 
 @Injectable()
 export class ProductsService {
@@ -10,25 +16,48 @@ export class ProductsService {
   async create(createProductDto: CreateProductDto) {
     const { name, description, price, imageUrl, categoryId } = createProductDto;
 
-    return this.prisma.product.create({
-      data: {
-        name,
-        description,
-        price,
-        imageUrl,
-        category: {
-          connect: { id: categoryId },
+    try {
+      return await this.prisma.product.create({
+        data: {
+          name,
+          description,
+          price,
+          imageUrl,
+          categoryId,
         },
-      },
-    });
+      });
+    } catch (error) {
+      if (
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === 'P2002' &&
+        Array.isArray(error.meta?.target) &&
+        error.meta.target.includes('name')
+      ) {
+        throw new BadRequestException('This product name already exists');
+      }
+      throw new InternalServerErrorException('Error al crear el producto');
+    }
   }
 
-  async findAll() {
-    return this.prisma.product.findMany({
-      include: {
-        category: true,
-      },
-    });
+  async findAll(page = 1, limit = 10) {
+    const skip = (page - 1) * limit;
+
+    const [products, total] = await this.prisma.$transaction([
+      this.prisma.product.findMany({
+        skip,
+        take: limit,
+        include: { category: true },
+        orderBy: { id: 'asc' }, // opcional pero recomendado
+      }),
+      this.prisma.product.count(),
+    ]);
+
+    return {
+      data: products,
+      total,
+      page,
+      lastPage: Math.ceil(total / limit),
+    };
   }
 
   async findOne(id: number) {
