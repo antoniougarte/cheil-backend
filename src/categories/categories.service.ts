@@ -1,7 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { Prisma } from 'generated/prisma';
 
 @Injectable()
 export class CategoriesService {
@@ -40,6 +45,18 @@ export class CategoriesService {
 
   async remove(id: number) {
     await this.findOne(id);
-    return this.prisma.category.delete({ where: { id } });
+    try {
+      return await this.prisma.category.delete({ where: { id } });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        throw new BadRequestException([
+          'Cannot delete category with associated products. Delete the products first.',
+        ]);
+      }
+      throw error;
+    }
   }
 }

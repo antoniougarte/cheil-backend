@@ -13,8 +13,29 @@ export function sendResponse<T>(
 }
 
 export function getErrorMessage(error: unknown): string {
-  if (error && typeof error === 'object' && 'message' in error) {
-    return (error as { message: string }).message;
+  if (error instanceof Error) {
+    return error.message;
   }
+
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const response = (error as { response?: unknown }).response;
+
+    if (
+      typeof response === 'object' &&
+      response !== null &&
+      'message' in response
+    ) {
+      const message = (response as { message?: unknown }).message;
+
+      if (Array.isArray(message)) {
+        return message.join(', ');
+      }
+
+      if (typeof message === 'string') {
+        return message;
+      }
+    }
+  }
+
   return 'unknown error';
 }

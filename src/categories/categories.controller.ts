@@ -102,6 +102,7 @@ export class CategoriesController {
       await this.categoriesService.remove(id);
       return sendResponse(res, HttpStatus.OK, 'Category deleted', null);
     } catch (error) {
+      console.error('Error deleting category:', error);
       return sendResponse(
         res,
         HttpStatus.BAD_REQUEST,
